@@ -310,6 +310,16 @@ input:checked+.toggle-sl:before{transform:translateX(20px)}
         <div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;margin-bottom:4px">Mapa de Zonas</div>
         <div style="font-size:11px;color:var(--ink-m);line-height:1.4">Ubicación por luz y condiciones</div>
       </div>
+      <div onclick="navTo('backup')" style="background:var(--white);border-radius:18px;padding:18px;
+        border:1px solid rgba(168,204,120,.28);box-shadow:0 2px 12px var(--shadow);
+        cursor:pointer;transition:all .2s;position:relative" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <span style="position:absolute;top:11px;right:11px;font-size:10px;font-weight:700;
+          background:var(--mist);color:var(--leaf);padding:2px 7px;border-radius:7px">Activo</span>
+        <div style="width:48px;height:48px;border-radius:12px;background:#e0f0f8;display:flex;
+          align-items:center;justify-content:center;font-size:26px;margin-bottom:10px">💾</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;margin-bottom:4px">Respaldo</div>
+        <div style="font-size:11px;color:var(--ink-m);line-height:1.4">Exporta y restaura todos tus datos</div>
+      </div>
     </div>
 
     <!-- Actividad reciente -->
@@ -413,7 +423,17 @@ input:checked+.toggle-sl:before{transform:translateX(20px)}
      ═══════════════════════════════════════════════════════════════ -->
 
 
-<!-- MODAL ROOT (compartido) -->
+<!-- ═══════════════════════════════════════════════════════════════
+     [6] MÓDULO: RESPALDO — INICIO
+     Exportar e importar todos los datos de la app.
+     Trabaja con todas las claves de localStorage.
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-backup">
+  <div style="max-width:740px;margin:0 auto;padding:18px 13px 90px" id="page-backup-content"></div>
+</div>
+<!-- ═══════════════════════════════════════════════════════════════
+     [6] MÓDULO: RESPALDO — FIN
+     ═══════════════════════════════════════════════════════════════ -->
 <div id="modal-root"></div>
 <button class="fab" id="fab" style="display:none">＋</button>
 <div class="toast" id="toast" style="display:none"></div>
@@ -470,10 +490,11 @@ function triggerGal(cb){window._photoCallback=cb;document.getElementById('pi-gal
    NAVEGACIÓN PRINCIPAL
 ───────────────────────────────────────────────── */
 const MODULE_TABS = {
-  menu:  [],
-  cats:  ['Lista','Valores','+ Sección'],
-  inv:   ['Inventario','+ Planta','Resumen'],
-  diary: ['Inicio','+ Anotar','Historial'],
+  menu:   [],
+  cats:   ['Lista','Valores','+ Sección'],
+  inv:    ['Inventario','+ Planta','Resumen'],
+  diary:  ['Inicio','+ Anotar','Historial'],
+  backup: ['Respaldo'],
 };
 let currentModule = 'menu';
 
@@ -495,6 +516,7 @@ function navTo(mod){
   else if(mod==='cats'){catsSubview='list';renderCats();}
   else if(mod==='inv'){invSubview='list';renderInv();}
   else if(mod==='diary'){diarySubview='home';renderDiary();}
+  else if(mod==='backup'){renderBackup();}
 }
 
 function modTab(mod,i){
@@ -1553,8 +1575,171 @@ function exportDiaryCSV(){
 }
 
 /* ═════════════════════════════════════════════════
-   INIT
+   MÓDULO: RESPALDO
+   Exporta e importa todos los datos de la app
    ═════════════════════════════════════════════════ */
+function renderBackup(){
+  setFab(false);
+  const el=document.getElementById('page-backup-content');
+
+  // Calcular tamaño aproximado de datos
+  const keys=['mj-catalogs','mj-plants','mj-entries','mj-diary-acts'];
+  let totalSize=0;
+  const summary=keys.map(k=>{
+    const v=localStorage.getItem(k)||'';
+    totalSize+=v.length;
+    let count=0;
+    try{const p=JSON.parse(v);count=Array.isArray(p)?p.length:0;}catch{}
+    const labels={
+      'mj-catalogs':'📋 Catálogos',
+      'mj-plants':'🌿 Plantas',
+      'mj-entries':'📔 Actividades',
+      'mj-diary-acts':'🏷 Tipos de actividad'
+    };
+    return{key:k,label:labels[k]||k,count,size:v.length};
+  });
+  const sizeKB=(totalSize/1024).toFixed(1);
+  const lastBackup=localStorage.getItem('mj-last-backup')||null;
+
+  el.innerHTML=`
+  <!-- Resumen de datos -->
+  <div class="card">
+    <div class="card-title">💾 Estado de los datos</div>
+    ${summary.map(s=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;
+        padding:9px 0;border-bottom:1px solid var(--fog)">
+        <span style="font-size:14px">${s.label}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--leaf);
+          background:var(--mist);padding:2px 10px;border-radius:10px">${s.count}</span>
+      </div>`).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px">
+      <span style="font-size:12px;color:var(--ink-m)">Tamaño total aproximado</span>
+      <span style="font-size:12px;font-weight:600;color:var(--ink-s)">${sizeKB} KB</span>
+    </div>
+    ${lastBackup?`<div style="font-size:11px;color:var(--ink-m);margin-top:4px">
+      Último respaldo: ${lastBackup}</div>`:'<div style="font-size:11px;color:var(--rose);margin-top:4px">⚠️ Aún no has hecho ningún respaldo</div>'}
+  </div>
+
+  <!-- Exportar -->
+  <div class="card">
+    <div class="card-title">⬆️ Exportar respaldo</div>
+    <p style="font-size:13px;color:var(--ink-m);margin-bottom:14px;line-height:1.5">
+      Guarda todos tus datos en un archivo <strong>.json</strong> en tu tablet. 
+      Úsalo como copia de seguridad o para transferir datos a otro dispositivo.
+    </p>
+    <button class="btn-primary" onclick="exportBackup()">
+      <span>💾 Exportar todos los datos</span>
+    </button>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="exportBackupCSV('mj-plants','mj-inventario.csv')">🌿 CSV Inventario</button>
+      <button class="btn-sm" onclick="exportBackupCSV('mj-entries','mj-diario.csv')">📔 CSV Diario</button>
+      <button class="btn-sm" onclick="exportBackupCSV('mj-catalogs','mj-catalogos.csv')">📋 CSV Catálogos</button>
+    </div>
+  </div>
+
+  <!-- Importar -->
+  <div class="card">
+    <div class="card-title">⬇️ Restaurar respaldo</div>
+    <p style="font-size:13px;color:var(--ink-m);margin-bottom:14px;line-height:1.5">
+      Selecciona un archivo <strong>.json</strong> exportado anteriormente para restaurar todos tus datos.
+      <strong style="color:var(--rose)">⚠️ Esto reemplazará los datos actuales.</strong>
+    </p>
+    <div style="border:2px dashed rgba(168,204,120,.6);border-radius:12px;background:var(--fog);
+      padding:20px;text-align:center;cursor:pointer" onclick="document.getElementById('restore-input').click()">
+      <div style="font-size:36px;margin-bottom:8px">📂</div>
+      <div style="font-size:13px;color:var(--ink-m)">Toca para seleccionar el archivo de respaldo</div>
+      <div style="font-size:11px;color:var(--ink-m);margin-top:4px">Solo archivos .json de MiJardín</div>
+    </div>
+    <input type="file" id="restore-input" accept=".json" style="display:none" onchange="importBackup(this)">
+  </div>
+
+  <!-- Limpiar datos -->
+  <div class="card" style="border-color:rgba(200,64,64,.2)">
+    <div class="card-title" style="color:var(--rose)">🗑 Zona de peligro</div>
+    <p style="font-size:13px;color:var(--ink-m);margin-bottom:14px;line-height:1.5">
+      Elimina todos los datos de la app. Esta acción <strong>no se puede deshacer</strong>. 
+      Exporta un respaldo antes de proceder.
+    </p>
+    <button onclick="clearAllData()" style="width:100%;padding:12px;border-radius:12px;
+      border:1.5px solid #f0c0c0;background:var(--rose-l);color:var(--rose);
+      font-family:'Jost',sans-serif;font-size:14px;font-weight:600;cursor:pointer">
+      🗑 Eliminar todos los datos
+    </button>
+  </div>`;
+}
+
+function exportBackup(){
+  const keys=['mj-catalogs','mj-plants','mj-entries','mj-diary-acts'];
+  const backup={
+    version:'1.0',
+    app:'MiJardin',
+    fecha:new Date().toISOString(),
+    datos:{}
+  };
+  keys.forEach(k=>{
+    try{backup.datos[k]=JSON.parse(localStorage.getItem(k)||'null');}
+    catch{backup.datos[k]=null;}
+  });
+  const json=JSON.stringify(backup,null,2);
+  const fecha=new Date().toLocaleDateString('es-CO').replace(/\//g,'-');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([json],{type:'application/json'}));
+  a.download=`mijardin-respaldo-${fecha}.json`;
+  a.click();
+  // Guardar fecha del último respaldo
+  localStorage.setItem('mj-last-backup',new Date().toLocaleString('es-CO'));
+  showToast('Respaldo exportado ✓');
+  setTimeout(()=>renderBackup(),500);
+}
+
+function exportBackupCSV(key,filename){
+  const data=loadLS(key,[]);
+  if(!data.length){showToast('No hay datos para exportar');return;}
+  // Exportar como CSV genérico
+  const rows=[Object.keys(data[0])];
+  data.forEach(item=>rows.push(Object.values(item).map(v=>
+    typeof v==='object'?JSON.stringify(v):String(v||'')
+  )));
+  dlCSV(rows,filename);
+  showToast('CSV exportado ✓');
+}
+
+function importBackup(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const backup=JSON.parse(e.target.result);
+      if(!backup.app||backup.app!=='MiJardin') throw new Error('Archivo no válido');
+      if(!confirm(`¿Restaurar respaldo del ${new Date(backup.fecha).toLocaleString('es-CO')}?\n\nEsto reemplazará todos los datos actuales.`))return;
+      // Restaurar cada clave
+      Object.entries(backup.datos).forEach(([k,v])=>{
+        if(v!==null) localStorage.setItem(k,JSON.stringify(v));
+      });
+      // Recargar datos en memoria
+      cats=loadLS('mj-catalogs',CATS_DEFAULTS);
+      plants=loadLS('mj-plants',[]);
+      entries=loadLS('mj-entries',[]);
+      diaryActs=loadLS('mj-diary-acts',DIARY_ACTS);
+      showToast('Datos restaurados correctamente ✓');
+      setTimeout(()=>renderBackup(),500);
+    }catch(err){
+      showToast('Error: archivo de respaldo no válido');
+    }
+  };
+  reader.readAsText(file);
+  input.value='';
+}
+
+function clearAllData(){
+  if(!confirm('¿Eliminar TODOS los datos de MiJardín?\n\nEsta acción no se puede deshacer.\nAsegúrate de haber exportado un respaldo.'))return;
+  if(!confirm('¿Estás segura? Se eliminarán todas las plantas, actividades y catálogos.'))return;
+  ['mj-catalogs','mj-plants','mj-entries','mj-diary-acts','mj-last-backup'].forEach(k=>localStorage.removeItem(k));
+  cats=loadLS('mj-catalogs',CATS_DEFAULTS);
+  plants=[];entries=[];diaryActs=DIARY_ACTS;
+  showToast('Todos los datos eliminados');
+  setTimeout(()=>renderBackup(),500);
+}
 bindPhotoInputs();
 navTo('menu');
 
